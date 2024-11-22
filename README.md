@@ -13,12 +13,11 @@ CommitChecker is a script to check the versions of specific commits in various r
 ## 📋 Usage
 
 ```bash
-./commitchecker.sh [-j <number_of_cpus>] [-r <repository>] [--help] [--version]
+./commitchecker [-r <repository>] [--help] [--version]
 ```
 
 ## ⚙️ Options
 
-* `-j <number_of_cpus>`	: Specify the number of CPUs to use for parallel processing.
 * `-r <repository>`	: Specify the repository to use (linux, qemu, libvirt, ovmf).
 * `--help`		: Display the help message.
 * `--version`		: Display the version information.
@@ -36,7 +35,7 @@ CommitChecker is a script to check the versions of specific commits in various r
 
 ## 💡 Example
 ```bash
-./commitchecker.sh -j 4 -r linux
+./commitchecker.sh -r linux
 ```
 
 ## 👤 Author

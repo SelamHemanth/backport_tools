@@ -5,68 +5,76 @@
 # Author: Hemanth Selam
 # Email: hemanth.selam@gmail.com
 # License: MIT
-# Version: 1.0.0
+# VERSION: 1.0.1
 ########################################################
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 AUTHOR="Hemanth Selam"
 EMAIL="hemanth.selam@gmail.com"
 LICENSE="MIT"
 
-# Function to display help message
 show_help() {
-    echo "Usage: $0 [-j <number_of_cpus>] [-r <repository>] [--help] [--version]"
-    echo ""
-    echo "Options:"
-    echo "  -j <number_of_cpus>  Specify the number of CPUs to use for parallel processing."
-    echo "  -r <repository>      Specify the repository to use (linux, qemu, libvirt, ovmf)."
-    echo "  --help               Display this help message."
-    echo "  --version            Display the version information."
-    echo ""
-    echo "Instructions:"
-    echo "1. Ensure you have a stable internet connection."
-    echo "2. Run the script from a directory where you want to perform the operations."
-    echo "3. If the current directory is not a Git repository, you will be prompted to either:"
-    echo "   a. Enter the path of an existing stable repository."
-    echo "   b. Download the stable repository from GitHub."
-    echo "4. If you choose to enter a path, ensure the path is correct and points to a valid Git repository."
-    echo "5. If you choose to download, the repository will be cloned to your home directory."
-    echo "6. After setting up the repository, you will be asked to provide commit IDs directly."
-    echo "7. The script will check the versions for each commit ID and save the output as an HTML file in your home directory."
+    cat <<EOF
+Usage: $0 [-r <repository>] [--help] [--version]
+
+Options:
+  -r <repository>  Specify the repository (linux, qemu, libvirt, ovmf).
+  --help           Display this help message.
+  --version        Display the version information.
+
+Instructions:
+1. Choose between providing a local repository path or downloading it.
+2. If providing a path, ensure it points to a valid Git repository.
+3. If downloading, the repository will be cloned to your home directory.
+4. Provide commit IDs (full or short); the script will process them and generate an HTML report.
+EOF
 }
 
-# Function to display version information
 show_version() {
-    echo "CommitChecker version $VERSION"
-    echo "Author: $AUTHOR"
-    echo "Email: $EMAIL"
-    echo "License: $LICENSE"
+    cat <<EOF
+CommitChecker version $VERSION
+Author: $AUTHOR
+Email: $EMAIL
+License: $LICENSE
+EOF
 }
 
-# Function to check if the current directory is a Git repository
 is_git_repo() {
     git rev-parse --is-inside-work-tree > /dev/null 2>&1
 }
 
-# Function to fetch tags and check versions
-check_versions() {
-    local repo_dir=$1
-    local output_file="$HOME/commit_versions.html"
-    local base_url=$2
+download_repo() {
+    local repo_url=$1
+    local repo_dir=$2
 
-    # Delete the existing output file if it exists
-    if [ -f "$output_file" ]; then
-        rm "$output_file"
+    if [ -d "$repo_dir" ] && [ "$(ls -A "$repo_dir")" ]; then
+        echo "Directory $repo_dir already exists and is not empty. Using the existing repository."
+    else
+        echo "Downloading repository..."
+        git clone "$repo_url" "$repo_dir"
+        echo "Repository downloaded to $repo_dir."
     fi
+    cd "$repo_dir" || exit
+    git checkout master
+}
 
-    # Fetch the latest tags
-    git fetch --tags
+process_commits() {
+    local repo_dir=$1
+    local base_url=$2
+    local output_file="$HOME/commit_versions.html"
 
-    # Check versions for each commit ID
+    echo "Processing commit IDs..."
     echo "<html><body><table border='1'><tr><th>Commit ID</th><th>Commit Message</th><th>Sort Number</th><th>Version</th></tr>" > "$output_file"
+
     local sort_number=1
     while IFS= read -r commit_id; do
-        full_commit_id=$(git rev-parse "$commit_id" 2>/dev/null)
+        # Ensure full commit ID
+        if [ ${#commit_id} -lt 40 ]; then
+            full_commit_id=$(git rev-parse "$commit_id" 2>/dev/null)
+        else
+            full_commit_id=$commit_id
+        fi
+
         if [ -z "$full_commit_id" ]; then
             echo "<tr><td colspan='4'>Invalid commit ID: $commit_id</td></tr>" >> "$output_file"
             continue
@@ -75,51 +83,45 @@ check_versions() {
         short_id=$(echo "$full_commit_id" | cut -c 1-12)
         commit_message=$(git log -n 1 --pretty=format:%s "$full_commit_id")
         version=$(git tag --contains "$full_commit_id" --sort=taggerdate | head -n 1)
-        echo "<tr><td><a href=\"$base_url$full_commit_id\">$short_id</a></td><td>$commit_message</td><td>$sort_number</td><td>$version</td></tr>" >> "$output_file"
+
+        echo "<tr><td><a href=\"$base_url$full_commit_id\">$short_id</a></td><td>$commit_message</td><td>$sort_number</td><td>${version:-None}</td></tr>" >> "$output_file"
         ((sort_number++))
     done < "$repo_dir/temp_commit_ids.txt"
-    echo "</table></body></html>" >> "$output_file"
 
+    echo "</table></body></html>" >> "$output_file"
     echo "Output saved to $output_file"
 }
 
-# Function to download the repository
-download_repo() {
-    local repo_url=$1
-    local repo_dir=$2
-
-    git clone "$repo_url" "$repo_dir"
-    cd "$repo_dir" || exit
-    git checkout master
-}
-
-# Main script
 main() {
-    local repo_url
-    local repo_dir
-    local num_cpus=1
     local repo_name=""
+    local repo_url=""
     local base_url=""
+    local repo_dir=""
 
-    while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
-        -j )
-            shift; num_cpus=$1
-            ;;
-        -r )
-            shift; repo_name=$1
-            ;;
-        --help )
-            show_help
-            exit 0
-            ;;
-        --version )
-            show_version
-            exit 0
-            ;;
-    esac; shift; done
-    if [[ "$1" == '--' ]]; then shift; fi
+    while [[ "$1" =~ ^- ]]; do
+        case $1 in
+            -r )
+                shift; repo_name=$1
+                ;;
+            --help )
+                show_help
+                exit 0
+                ;;
+            --version )
+                show_version
+                exit 0
+                ;;
+            * )
+                echo "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+        shift
+    done
 
     if [ -z "$repo_name" ]; then
+        echo "Repository name is required."
         show_help
         exit 1
     fi
@@ -149,22 +151,17 @@ main() {
 
     repo_dir="$HOME/${repo_name}-stable-repo"
 
-    if is_git_repo; then
-        echo "Current directory is a Git repository."
-    else
-        echo "Current directory is not a Git repository."
-        echo "1. Enter path of the stable repository"
-        echo "2. Download the stable repository"
-        read -r choice
+    echo "Choose an option:"
+    echo "1. Provide the path of the stable repository"
+    echo "2. Download the stable repository"
+    read -rp "Enter your choice (1 or 2): " choice
 
-        if [ "$choice" -eq 1 ]; then
-            echo "Enter the path of the stable repository:"
-            read -r repo_path
+    case $choice in
+        1)
+            read -rp "Enter the path of the stable repository: " repo_path
             if [ -d "$repo_path" ]; then
                 cd "$repo_path" || exit
-                if is_git_repo; then
-                    git checkout master
-                else
+                if ! is_git_repo; then
                     echo "The specified path is not a Git repository. Downloading the stable repository instead."
                     download_repo "$repo_url" "$repo_dir"
                 fi
@@ -172,19 +169,15 @@ main() {
                 echo "Invalid path. Downloading the stable repository instead."
                 download_repo "$repo_url" "$repo_dir"
             fi
-        elif [ "$choice" -eq 2 ]; then
-            if [ -d "$repo_dir" ] && [ "$(ls -A $repo_dir)" ]; then
-                echo "Directory $repo_dir already exists and is not empty. Using the existing repository."
-                cd "$repo_dir" || exit
-                git checkout master
-            else
-                download_repo "$repo_url" "$repo_dir"
-            fi
-        else
+            ;;
+        2)
+            download_repo "$repo_url" "$repo_dir"
+            ;;
+        *)
             echo "Invalid choice. Exiting."
             exit 1
-        fi
-    fi
+            ;;
+    esac
 
     echo "Enter the commit IDs (one per line, end with an empty line):"
     commit_ids=()
@@ -192,46 +185,22 @@ main() {
         commit_ids+=("$commit_id")
     done
 
-    if [ ${#commit_ids[@]} -gt 0 ]; then
-        # Convert all commit IDs to full commit IDs and save to a temporary file in repo_dir
-        full_commit_ids=()
-        for commit_id in "${commit_ids[@]}"; do
-            if [ ${#commit_id} -lt 40 ]; then
-                full_commit_id=$(git rev-parse "$commit_id" 2>/dev/null)
-            else
-                full_commit_id=$commit_id
-            fi
-            if [ -n "$full_commit_id" ]; then
-                full_commit_ids+=("$full_commit_id")
-            else
-                echo "Invalid commit ID: $commit_id"
-            fi
-        done
-
-        # Ensure the directory exists
-        mkdir -p "$repo_dir"
-
-        # Save commit IDs to the temporary file
-        printf "%s\n" "${full_commit_ids[@]}" > "$repo_dir/temp_commit_ids.txt"
-
-        # Sort commit IDs based on their order in the log (older to newer)
-        sorted_commit_ids=($(git log --reverse --pretty=format:%H | grep -Fxf "$repo_dir/temp_commit_ids.txt"))
-
-        # Save sorted commit IDs to the temporary file
-        printf "%s\n" "${sorted_commit_ids[@]}" > "$repo_dir/temp_commit_ids.txt"
-
-        # Run the check_versions function in the background
-        (check_versions "$repo_dir" "$base_url") &
-        job_id=$!
-        echo "Process running in the background with Job ID: $job_id"
-        echo "Output will be saved to: $HOME/commit_versions.html"
-
-        # Clean up temporary file after the process completes
-        (sleep 1 && rm "$repo_dir/temp_commit_ids.txt") &
-    else
+    if [ ${#commit_ids[@]} -eq 0 ]; then
         echo "No commit IDs provided. Exiting."
         exit 1
     fi
+
+    mkdir -p "$repo_dir"
+    printf "%s\n" "${commit_ids[@]}" > "$repo_dir/temp_commit_ids.txt"
+
+    # Run the process in the background
+    (process_commits "$repo_dir" "$base_url" &> /dev/null &) &
+    process_id=$!
+    echo "Processing in the background. Process ID: $process_id"
+    echo "Output will be saved to $HOME/commit_versions.html"
+
+    # Notify user of completion in the background process
+    echo "The process is running. You will be notified once the HTML file is ready."
 }
 
 main "$@"
