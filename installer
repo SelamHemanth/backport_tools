@@ -1,0 +1,38 @@
+#!/bin/bash
+#===================================================
+# Installer Script for Contributor Checker Tool
+# Author: Hemanth Selam
+# Email: hemanth.selam@gmail.com
+# Version: 1.0.1
+# License: MIT
+#==================================================
+
+# Check for required packages and install them
+if [ -f /etc/debian_version ]; then
+    sudo apt update
+    sudo apt install -y python3 python3-pip
+elif [ -f /etc/redhat-release ] || [ -f /etc/anolis-release ] ||
+        [ -f /etc/openEuler-release ] || [ -f /etc/centos-release ] ||
+        [ -f /etc/rocky-release ]; then
+    sudo yum install -y python3 python3-pip
+else
+    echo "Unsupported distribution"
+    exit 1
+fi
+
+# Install the pandas and matplotlib
+pip install pandas matplotlib
+
+# Install the termcolor and pyinstaller packages
+pip3 install --user termcolor pyinstaller
+
+# Create a binary for the Python script
+~/.local/bin/pyinstaller --onefile contributor-checker.py
+
+# Move the binary to /usr/bin/
+sudo mv dist/contributor-checker /usr/bin/contributor-checker
+
+# Clean up
+rm -rf build dist contributor-checker.spec
+
+echo "Installation complete. You can now use 'contributor-checker' command."
