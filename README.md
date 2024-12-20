@@ -40,9 +40,9 @@ contributor-checker -b=<branch_name> -d=<domain_name>
 
 ### Output:
 The script generates an HTML file contributor-report.html containing:
-	* A summary table of contributors.
-	* Two pie charts showing the contribution distribution.
-	* A detailed commit report.
+* A summary table of contributors.
+* Two pie charts showing the contribution distribution.
+* A detailed commit report.
 
 ## Author:
 * `Name:` Hemanth Selam
