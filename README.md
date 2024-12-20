@@ -46,5 +46,5 @@ The script generates an HTML file contributor-report.html containing:
 
 ## Author:
 * `Name:` Hemanth Selam
-* `Email:` Hemanth.Selam@amd.com
+* `Email:` Hemanth.Selam@gamil.com
 * `Version:` 20241219
